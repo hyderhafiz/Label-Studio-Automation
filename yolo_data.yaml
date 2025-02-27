@@ -1,0 +1,4 @@
+train: d:\camcom\fast\data/images
+val: d:\camcom\fast\data/images
+nc: 5
+names: ['Ambulance', 'Car', 'Bus', 'Truck', 'Motorcycle']
