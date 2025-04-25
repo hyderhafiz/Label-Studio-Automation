@@ -1,0 +1,9 @@
+train: d:/camcom/fast/data/merged_images
+val: d:/camcom/fast/data/merged_images
+nc: 5
+names:
+- Ambulance
+- Car
+- Bus
+- Truck
+- Motorcycle
