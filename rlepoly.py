@@ -5,7 +5,7 @@ import cv2
 from tqdm import tqdm
 from glob import glob
 
-################################################ Add Class here ####################################
+# 🔹 Class Mapping for YOLO Labels
 class_map = {   
     'Ambulance': 0,
     'Car': 1,
@@ -25,7 +25,7 @@ class InputStream:
         return int(out, 2)
 
 def access_bit(data, num):
-    """From bytes array to bits by num position."""
+    """Convert bytes array to bit at given position."""
     base = int(num // 8)
     shift = 7 - int(num % 8)
     return (data[base] & (1 << shift)) >> shift
@@ -34,14 +34,12 @@ def bytes2bit(data):
     """Get bit string from bytes data."""
     return ''.join([str(access_bit(data, i)) for i in range(len(data) * 8)])
 
-def decode_rle(rle, print_params: bool = False):
-    """Convert LS RLE to numpy uint8 3D image [width, height, channel]."""
+def decode_rle(rle):
+    """Convert RLE-encoded mask to numpy array."""
     input_stream = InputStream(bytes2bit(rle))
     num = input_stream.read(32)
     word_size = input_stream.read(5) + 1
     rle_sizes = [input_stream.read(4) + 1 for _ in range(4)]
-    if print_params:
-        print("RLE params:", num, word_size, rle_sizes)
     i = 0
     out = np.zeros(num, dtype=np.uint8)
     while i < num:
@@ -61,7 +59,6 @@ def decode_rle(rle, print_params: bool = False):
 def rle_to_mask(rle, width, height):
     mask = decode_rle(rle)
     mask = np.reshape(mask, [height, width, 4])[:, :, 3]
-    cv2.imwrite('mask.png', mask)
     return mask
 
 def separate_instances(mask, min_instance_area=100):
@@ -85,29 +82,42 @@ def mask_to_polygon(mask):
         polygon.extend(contour_pairs)
     return polygon
 
-def convert_to_yolo(dataset_path, image_path):
+def convert_to_yolo(dataset_path, project_path):
+    """
+    Converts a Label Studio JSON annotation file to YOLO format.
+
+    - Extracts image data.
+    - Saves labels in `data/projects/{project_id}/labels/`
+    """
     with open(dataset_path, 'r') as f:
         dataset = json.load(f)
-    # If dataset is a single dict, wrap it in a list.
+
+    # If dataset is a single dict, wrap it in a list
     if isinstance(dataset, dict):
         dataset = [dataset]
+
     for item in tqdm(dataset, desc="Processing JSON"):
-        # Get image URL from task data
+        project_id = str(item.get('task', {}).get('project'))
+        if not project_id:
+            print("Skipping annotation: No project ID found.")
+            continue
+        
+        project_folder = os.path.join(project_path)
+        images_folder = os.path.join(project_folder, "images")
+        labels_folder = os.path.join(project_folder, "labels")
+
+        os.makedirs(labels_folder, exist_ok=True)
+
         image_in_json = item.get('task', {}).get('data', {}).get('image')
         if not image_in_json:
             print("No image found in task data.")
             continue
 
         base_name = os.path.basename(image_in_json)
-        image_filename = os.path.join(image_path, base_name)
+        image_filename = os.path.join(images_folder, base_name)
         if not os.path.exists(image_filename):
-            # If the file is not found, try removing a prefix before a dash if present.
-            if '-' in base_name:
-                new_base_name = base_name.split('-', 1)[1]
-                image_filename = os.path.join(image_path, new_base_name)
-            if not os.path.exists(image_filename):
-                print(f"Image file not found: {image_filename}")
-                continue
+            print(f"Image file not found: {image_filename}")
+            continue
 
         image = cv2.imread(image_filename)
         if image is None:
@@ -145,16 +155,13 @@ def convert_to_yolo(dataset_path, image_path):
 
             # Write annotations to YOLO format file if any annotations were found.
             if annotations:
-                yolo_filename = os.path.splitext(image_filename)[0].replace("images", "labels") + '.txt'
-                os.makedirs(os.path.dirname(yolo_filename), exist_ok=True)
+                yolo_filename = os.path.join(labels_folder, os.path.splitext(base_name)[0] + '.txt')
                 print(f"Writing YOLO file: {yolo_filename}")
                 with open(yolo_filename, 'w') as f:
                     for ann in annotations:
                         try:
                             class_name = ann[0]
                             coordinates = ann[1:]
-                            if class_name == 'r':
-                                class_name = 'other'
                             line = f"{class_map[class_name]} {' '.join(map(str, coordinates))}\n"
                             f.write(line)
                         except Exception as e:
@@ -162,11 +169,18 @@ def convert_to_yolo(dataset_path, image_path):
                             continue
 
 
-base_dir = os.path.dirname(os.path.abspath(__file__))
-json_dir = os.path.join(base_dir, "data/json")
-image_dir = os.path.join(base_dir, "data/images")
-txt_dir = os.path.join(base_dir, "data/labels")
-os.makedirs(txt_dir, exist_ok=True)
+# # 🔹 Define Base Directory Structure
+# base_dir = os.path.dirname(os.path.abspath(__file__))
+# projects_dir = os.path.join(base_dir, "data\projects")
 
-for json_file in tqdm(glob(os.path.join(json_dir, "*.json")), desc="Converting JSON files"):
-    convert_to_yolo(json_file, image_dir)
+# # 🔹 Process all projects
+# for project_folder in tqdm(os.listdir(projects_dir), desc="Processing Projects"):
+#     project_path = os.path.join(projects_dir, project_folder)
+#     json_dir = os.path.join(project_path, "responses")
+    
+#     if not os.path.exists(json_dir):
+#         print(f"Skipping {project_folder}, no responses found.")
+#         continue
+
+    # for json_file in tqdm(glob(os.path.join(json_dir, "*.json")), desc=f"Converting JSON in {project_folder}"):
+    #     convert_to_yolo(json_file, projects_dir)
