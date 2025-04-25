@@ -1,0 +1,5 @@
+outs:
+- md5: cb4e5f64d41947ade56e21c0a7dfe8d0
+  size: 568
+  hash: md5
+  path: projects_config.json

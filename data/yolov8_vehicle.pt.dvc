@@ -1,0 +1,5 @@
+outs:
+- md5: 7c98861bb805e87f542d32e274d24869
+  size: 6265809
+  hash: md5
+  path: yolov8_vehicle.pt

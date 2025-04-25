@@ -1,0 +1,6 @@
+outs:
+- md5: 48c18a7638176694d29f92acad144b7b.dir
+  size: 59018027
+  nfiles: 199
+  hash: md5
+  path: projects
